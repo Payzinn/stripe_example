@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ object.title }}{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <a href="{% url 'core:index' %}">Назад</a>
+        <h1>{{ object.name }}</h1>
+        {% if object.currency == "usd" %}
+            <p>{{ object.price_display_dollar }}</p>
+        {% elif object.currency == "rub" %}
+            <p>{{ object.price_display_rouble }}</p>
+        {% endif %}
+        <p>{{ object.description }}</p>
+        <form action="{% url 'core:order_post' object.id %}" method="post">
+            {% csrf_token %}
+            <button type="submit">Добавить в корзину</button>
+        </form>
+        <button type="button" id="checkout-button">Купить</button>
+        {% csrf_token %}
+    </div>
+<script>
+    var stripe = Stripe("{{ STRIPE_PUBLIC_KEY }}");
+    var checkoutButton = document.getElementById("checkout-button");
+    var csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    checkoutButton.addEventListener("click", function () {
+        
+        let itemId = "{{ object.id|default_if_none:'' }}";
+
+        fetch("{% url 'core:create-checkout-single' object.id %}", {
+            method: "GET",
+            headers: {
+                "X-CSRFToken": csrftoken
+            }
+        })
+        .then(response => response.json())
+        .then(session => stripe.redirectToCheckout({ sessionId: session.id }))
+        .catch(error => console.error("Error:", error));
+    });
+</script>
+{% endblock %}

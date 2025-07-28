@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Главная{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <h1>Товары</h1>
+        <ul>
+        {% for item in items %}
+            <li><a href="{% url 'core:detail' item.pk %}">{{ item.name }}</a></li>
+            {% empty %}
+            <p>Товаров нет.</p>
+        {% endfor %}
+        </ul>
+
+        {% include 'pagination.html' with page=page_obj %}
+    </div>
+
+
+{% endblock %}

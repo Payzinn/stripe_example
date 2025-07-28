@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ object.name }}{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <h1>Заказ</h1>
+        <h2>Конечная сумма считается в долларах</h2>
+        
+        {% if order %}
+        <ul>
+            {% for item in order.items.all %}
+                <li>
+                    <a href="{% url 'core:detail' item.id %}">{{ item.name }}</a> 
+                    {% if item.currency == "usd" %}
+                        <p>{{ item.price_display_dollar }}</p>
+                    {% elif item.currency == "rub" %}
+                        <p>{{ item.price_display_rouble }} / {{ item.price_display_dollar }}</p>
+                    {% endif %}
+                </li>
+                <hr>
+            {% empty %}
+                <p>В корзине нет товаров</p>
+            {% endfor %}
+        </ul>
+        
+        <p>Сумма: {{ end_sum }} $</p>
+        {% if order.items.all %}
+            <button type="button" id="checkout-button">Купить</button>
+        {% endif %}
+            {% csrf_token %}
+        {% else %}
+            <p>Нет корзины</p>
+        {% endif %}
+    </div>
+
+<script>
+    var stripe = Stripe("{{ STRIPE_PUBLIC_KEY }}");
+    var checkoutButton = document.getElementById("checkout-button");
+    var csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    checkoutButton.addEventListener("click", function () {
+
+        fetch("{% url 'core:create-checkout-cart' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrftoken,
+            }
+        })
+        .then(response => response.json())
+        .then(session => stripe.redirectToCheckout({ sessionId: session.id }))
+        .catch(error => console.error("Error:", error));
+    });
+</script>
+
+{% endblock %}
