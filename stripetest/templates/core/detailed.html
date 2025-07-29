@@ -5,11 +5,7 @@
 {% block content %}
 
     <div class="container">
-        <form id="payment-form">
-            <div id="card-element"><!-- Элемент Stripe Elements --></div>
-                <button id="submit">Оплатить</button>
-            <div id="error-message"></div>
-        </form>
+
         <a href="{% url 'core:index' %}">Назад</a>
         <h1>{{ object.name }}</h1>
         {% if object.currency == "usd" %}
@@ -22,7 +18,12 @@
             {% csrf_token %}
             <button type="submit">Добавить в корзину</button>
         </form>
-        <button type="button" id="checkout-button">Купить</button>
+
+        <form id="payment-form">
+            <div id="card-element"><!-- Элемент Stripe Elements --></div>
+                <button type="button" id="checkout-button">Купить</button>
+            <div id="error-message"></div>
+        </form>
         {% csrf_token %}
     </div>
 <script>
@@ -35,7 +36,7 @@ var checkoutButton = document.getElementById("checkout-button");
 var errorMessage = document.getElementById("error-message");
 
 checkoutButton.addEventListener("click", function () {
-  fetch("{% url 'core:create-checkout-single' object.id %}")  // GET-запрос
+  fetch("{% url 'core:create-checkout-single' object.id %}")  
     .then(response => response.json())
     .then(data => {
       stripe.confirmCardPayment(data.client_secret, {

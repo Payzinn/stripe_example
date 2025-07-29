@@ -30,9 +30,13 @@
         </ul>
         
         <p>Сумма: {{ end_sum }} $</p>
-        {% if order.items.all %}
-            <button type="button" id="checkout-button">Купить</button>
-        {% endif %}
+        
+        <form id="payment-form">
+            <div id="card-element"><!-- Элемент Stripe Elements --></div>
+                <button type="button" id="checkout-button">Купить</button>
+            <div id="error-message"></div>
+        </form>
+        
             {% csrf_token %}
         {% else %}
             <p>Нет корзины</p>
@@ -40,9 +44,12 @@
     </div>
 
 <script>
-    var stripe = Stripe("{{ STRIPE_PUBLIC_KEY }}");
-    var checkoutButton = document.getElementById("checkout-button");
-    var csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+var stripe = Stripe("{{ STRIPE_PUBLIC_KEY }}");
+var elements = stripe.elements();
+var checkoutButton = document.getElementById("checkout-button");
+var csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+var cardElement = elements.create('card');
+cardElement.mount('#card-element');
 
 checkoutButton.addEventListener("click", function () {
   fetch("{% url 'core:create-checkout-cart' %}", {
@@ -55,7 +62,11 @@ checkoutButton.addEventListener("click", function () {
   .then(response => response.json())
   .then(data => {
     console.log("Client secret:", data.client_secret);
-    stripe.confirmCardPayment(data.client_secret).then(function(result) {
+    stripe.confirmCardPayment(data.client_secret, {
+        payment_method: {
+          card: cardElement,
+        }
+      }).then(function(result) {
       if (result.error) {
         alert("Ошибка оплаты: " + result.error.message);
       } else if (result.paymentIntent.status === 'succeeded') {
@@ -65,7 +76,7 @@ checkoutButton.addEventListener("click", function () {
   })
   .catch(error => {
     console.error("Error:", error);
-    alert("Произошла ошибка при создании платежа.");
+    alert("Произошла ошибка при создании платежа." , error);
   });
 });
 
