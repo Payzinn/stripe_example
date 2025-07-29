@@ -1,14 +1,17 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest, HttpResponseNotFound
 from django.views.generic import ListView, DetailView
 from django.views import View
 from core.models import *
+from django.urls import reverse
 import stripe
 import uuid
 from django.conf import settings
 
 
-stripe.api_key = settings.STRIPE_SECRET_KEY
+DOLLAR = stripe.api_key = settings.STRIPE_SECRET_KEY_DOLLAR
+ROUBLE = stripe.api_key = settings.STRIPE_SECRET_KEY_ROUBLE
+
 
 DOMAIN = "http://127.0.0.1:8000"
 
@@ -39,7 +42,7 @@ class OrderView(View):
                     end_sum += item.price / 100
                 if item.currency == Item.Currency.ROUBLE:
                     end_sum += item.price * 0.01
-        return render(request, "core/order.html", {"order":order, "end_sum":end_sum, "STRIPE_PUBLIC_KEY": settings.STRIPE_PUBLIC_KEY})
+        return render(request, "core/order.html", {"order":order, "end_sum":end_sum, "STRIPE_PUBLIC_KEY": settings.STRIPE_PUBLIC_KEY_DOLLAR})
         
 class CreateCheckoutSession(View):
     
@@ -48,61 +51,49 @@ class CreateCheckoutSession(View):
         item = Item.objects.get(pk = item_id)
         item_price = item.price
         item_currency = item.currency
+
         if item_currency == "rub":
+            stripe.api_key = settings.STRIPE_SECRET_KEY_ROUBLE
+        elif item_currency == "usd":
+            stripe.api_key = settings.STRIPE_SECRET_KEY_DOLLAR
+
+        if item_currency == "usd":
+            item_price *= 100
+
+        elif item_currency == "rub":
             item_price *= 100
         
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[
-                {
-                    "price_data":{
-                        "currency":item_currency,
-                        "unit_amount":item_price,
-                        'product_data':{
-                            "name":item.name
-                        },
-                    },
-                    "quantity":1,
-                },
-            ],
+        intent = stripe.PaymentIntent.create(
+            automatic_payment_methods={"enabled": True},
+            amount = item_price,
+            currency = item_currency,
             metadata={
                 "product_id": item.id
-            },
-            mode="payment",
-            success_url = DOMAIN + "/success/",
-            cancel_url = DOMAIN + "/cancel/",
+            }
         )
-        return JsonResponse({"id":checkout_session.id})
+        return JsonResponse({"client_secret":intent.client_secret}) # Так как в бонусных заданиях было указано использовать Payment Intent приходится возвращать именно это
     
     def post(self, request, *args, **kwargs):
         user_id = request.session["user_id"]
         user = get_object_or_404(AnonymousUser, user_id=user_id)
         order = Order.objects.filter(user=user).first()
 
-        line_items = []
-
-        for item in order.items.all():
+        metadata = {}
+        amount = 0
+        for idx, item in enumerate(order.items.all()):
             if item.currency == Item.Currency.DOLLAR:
-                amount = item.price
+                amount += int(item.price * 100)
             elif item.currency == Item.Currency.ROUBLE:
-                amount = item.price * 0.01 * 100
-            line_items.append({
-                "price_data":{
-                    "currency":"usd",
-                    "unit_amount":amount,
-                    "product_data":{"name":item.name},
-                        
-                },
-                "quantity":1
-            })
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=line_items,
-            mode="payment",
-            success_url = DOMAIN + "/success/",
-            cancel_url = DOMAIN + "/cancel/",
+                amount += int(item.price)
+            metadata[f"item_{idx}_id"] = str(item.id)
+        stripe.api_key = settings.STRIPE_SECRET_KEY_DOLLAR
+        intent = stripe.PaymentIntent.create(
+            automatic_payment_methods={"enabled": True},
+            metadata = metadata,
+            amount = amount,
+            currency = "usd"
         )
-        return JsonResponse({"id":checkout_session.id})
+        return JsonResponse({"client_secret":intent.client_secret}) # Так как в бонусных заданиях было указано использовать Payment Intent приходится возвращать именно это
 
 
 
@@ -111,8 +102,14 @@ class ItemDetailView(DetailView):
     model = Item
 
     def get_context_data(self, **kwargs):
-        context = super(ItemDetailView, self).get_context_data(**kwargs)
-        context.update({"STRIPE_PUBLIC_KEY": settings.STRIPE_PUBLIC_KEY})
+        context = super().get_context_data(**kwargs)
+        item = self.get_object()
+
+        if item.currency == Item.Currency.DOLLAR:
+            context["stripe_public_key"] = settings.STRIPE_PUBLIC_KEY_DOLLAR
+        elif item.currency == Item.Currency.ROUBLE:
+            context["stripe_public_key"] = settings.STRIPE_PUBLIC_KEY_ROUBLE
+
         return context
     
 class ItemListView(ListView):
@@ -120,6 +117,14 @@ class ItemListView(ListView):
     context_object_name = "items"
     paginate_by = 3
     template_name = "core/index.html"
+
+def delete_item(request, pk):
+    user_id = request.session["user_id"]
+    user = get_object_or_404(AnonymousUser, user_id=user_id)
+    order = Order.objects.filter(user = user).first()
+    if order:
+        order.items.remove(pk)
+    return redirect("/order/")
 
 def success(request):
     return HttpResponse(200)

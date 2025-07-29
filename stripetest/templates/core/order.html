@@ -14,9 +14,14 @@
                     <a href="{% url 'core:detail' item.id %}">{{ item.name }}</a> 
                     {% if item.currency == "usd" %}
                         <p>{{ item.price_display_dollar }}</p>
+
                     {% elif item.currency == "rub" %}
                         <p>{{ item.price_display_rouble }} / {{ item.price_display_dollar }}</p>
                     {% endif %}
+                    <form action="{% url 'core:delete_item' item.id %}" method="post">
+                        <button>Удалить</button>
+                        {% csrf_token %}
+                    </form>
                 </li>
                 <hr>
             {% empty %}
@@ -39,19 +44,31 @@
     var checkoutButton = document.getElementById("checkout-button");
     var csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-    checkoutButton.addEventListener("click", function () {
-
-        fetch("{% url 'core:create-checkout-cart' %}", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": csrftoken,
-            }
-        })
-        .then(response => response.json())
-        .then(session => stripe.redirectToCheckout({ sessionId: session.id }))
-        .catch(error => console.error("Error:", error));
+checkoutButton.addEventListener("click", function () {
+  fetch("{% url 'core:create-checkout-cart' %}", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrftoken,
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log("Client secret:", data.client_secret);
+    stripe.confirmCardPayment(data.client_secret).then(function(result) {
+      if (result.error) {
+        alert("Ошибка оплаты: " + result.error.message);
+      } else if (result.paymentIntent.status === 'succeeded') {
+        window.location.href = "/success/";
+      }
     });
+  })
+  .catch(error => {
+    console.error("Error:", error);
+    alert("Произошла ошибка при создании платежа.");
+  });
+});
+
 </script>
 
 {% endblock %}

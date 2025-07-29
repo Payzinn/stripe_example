@@ -12,4 +12,6 @@ urlpatterns = [
     path("buy/", CreateCheckoutSession.as_view(), name="create-checkout-cart"),
     path("order/<int:pk>/", OrderView.as_view(), name="order_post"),
     path("order/", OrderView.as_view(), name="order_get"),
+    path("delete/<int:pk>/", delete_item, name="delete_item"),
+
 ]

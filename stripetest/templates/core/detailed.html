@@ -3,7 +3,13 @@
 {% block title %}{{ object.title }}{% endblock %}
 
 {% block content %}
+
     <div class="container">
+        <form id="payment-form">
+            <div id="card-element"><!-- Элемент Stripe Elements --></div>
+                <button id="submit">Оплатить</button>
+            <div id="error-message"></div>
+        </form>
         <a href="{% url 'core:index' %}">Назад</a>
         <h1>{{ object.name }}</h1>
         {% if object.currency == "usd" %}
@@ -20,23 +26,31 @@
         {% csrf_token %}
     </div>
 <script>
-    var stripe = Stripe("{{ STRIPE_PUBLIC_KEY }}");
-    var checkoutButton = document.getElementById("checkout-button");
-    var csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+var stripe = Stripe("{{ stripe_public_key }}");
+var elements = stripe.elements();
+var cardElement = elements.create('card');
+cardElement.mount('#card-element');
 
-    checkoutButton.addEventListener("click", function () {
-        
-        let itemId = "{{ object.id|default_if_none:'' }}";
+var checkoutButton = document.getElementById("checkout-button");
+var errorMessage = document.getElementById("error-message");
 
-        fetch("{% url 'core:create-checkout-single' object.id %}", {
-            method: "GET",
-            headers: {
-                "X-CSRFToken": csrftoken
-            }
-        })
-        .then(response => response.json())
-        .then(session => stripe.redirectToCheckout({ sessionId: session.id }))
-        .catch(error => console.error("Error:", error));
-    });
+checkoutButton.addEventListener("click", function () {
+  fetch("{% url 'core:create-checkout-single' object.id %}")  // GET-запрос
+    .then(response => response.json())
+    .then(data => {
+      stripe.confirmCardPayment(data.client_secret, {
+        payment_method: {
+          card: cardElement,
+        }
+      }).then(function(result) {
+        if (result.error) {
+          errorMessage.textContent = result.error.message;
+        } else if (result.paymentIntent.status === 'succeeded') {
+          window.location.href = "/success/";
+        }
+      });
+    })
+    .catch(error => console.error("Error:", error));
+});
 </script>
 {% endblock %}

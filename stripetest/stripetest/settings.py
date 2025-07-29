@@ -16,8 +16,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 DJANGO_SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
+STRIPE_SECRET_KEY_DOLLAR = os.getenv("STRIPE_SECRET_KEY_DOLLAR")
+STRIPE_PUBLIC_KEY_DOLLAR = os.getenv("STRIPE_PUBLISHABLE_KEY_DOLLAR")
+STRIPE_SECRET_KEY_ROUBLE = os.getenv("STRIPE_SECRET_KEY_ROUBLE")
+STRIPE_PUBLIC_KEY_ROUBLE = os.getenv("STRIPE_PUBLISHABLE_KEY_ROUBLE")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
