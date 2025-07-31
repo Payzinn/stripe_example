@@ -4,6 +4,7 @@ from django.views.generic import ListView, DetailView
 from django.views import View
 from core.models import *
 from django.urls import reverse
+from django.contrib import messages
 import stripe
 import uuid
 from django.conf import settings
@@ -25,8 +26,10 @@ class OrderView(View):
         user, _ = AnonymousUser.objects.get_or_create(user_id = user_id)
         order, _ = Order.objects.get_or_create(user = user)
         order.items.add(item)
-        order.update(tax=2, discount=2)
-        return JsonResponse({"status":"ok"})
+        i_order = Order.objects.filter(pk=order.id)
+        i_order.update(tax = 2, discount = 2)
+        messages.success(request, "Товар добавлен в корзину." )
+        return redirect(f"core:detail", pk=item_id)
 
     def get(self, request, *args, **kwargs):
         if "user_id" not in request.session:
@@ -39,9 +42,10 @@ class OrderView(View):
         if order:
             for item in order.items.all():
                 if item.currency == Item.Currency.DOLLAR:
-                    end_sum += item.price / 100
+                    end_sum += item.price 
                 if item.currency == Item.Currency.ROUBLE:
-                    end_sum += item.price * 0.01
+                    end_sum += (item.price / 100)
+            end_sum
         return render(request, "core/order.html", {"order":order, "end_sum":end_sum, "STRIPE_PUBLIC_KEY": settings.STRIPE_PUBLIC_KEY_DOLLAR})
         
 class CreateCheckoutSession(View):
@@ -98,7 +102,7 @@ class CreateCheckoutSession(View):
         intent = stripe.PaymentIntent.create(
             automatic_payment_methods={"enabled": True},
             metadata = metadata,
-            amount = final_amount,
+            amount = int(final_amount),
             currency = "usd"
         )
         return JsonResponse({"client_secret":intent.client_secret}) # Так как в бонусных заданиях было указано использовать Payment Intent приходится возвращать именно это

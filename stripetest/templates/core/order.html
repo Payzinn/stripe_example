@@ -16,7 +16,7 @@
                         <p>{{ item.price_display_dollar }}</p>
 
                     {% elif item.currency == "rub" %}
-                        <p>{{ item.price_display_rouble }} / {{ item.price_display_dollar }}</p>
+                        <p>{{ item.price_display_rouble }}</p>
                     {% endif %}
                     <form action="{% url 'core:delete_item' item.id %}" method="post">
                         <button>Удалить</button>
