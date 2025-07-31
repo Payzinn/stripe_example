@@ -25,6 +25,7 @@ class OrderView(View):
         user, _ = AnonymousUser.objects.get_or_create(user_id = user_id)
         order, _ = Order.objects.get_or_create(user = user)
         order.items.add(item)
+        order.update(tax=2, discount=2)
         return JsonResponse({"status":"ok"})
 
     def get(self, request, *args, **kwargs):
@@ -33,7 +34,6 @@ class OrderView(View):
         user_id = request.session["user_id"]
         user, _ = AnonymousUser.objects.get_or_create(user_id=user_id)
         order = Order.objects.filter(user=user).first()
-
         # Конечная сумма в корзине всегда в долларах
         end_sum = 0
         if order:
@@ -51,7 +51,7 @@ class CreateCheckoutSession(View):
         item = Item.objects.get(pk = item_id)
         item_price = item.price
         item_currency = item.currency
-
+        
         if item_currency == "rub":
             stripe.api_key = settings.STRIPE_SECRET_KEY_ROUBLE
         elif item_currency == "usd":
@@ -77,20 +77,28 @@ class CreateCheckoutSession(View):
         user_id = request.session["user_id"]
         user = get_object_or_404(AnonymousUser, user_id=user_id)
         order = Order.objects.filter(user=user).first()
+        tax = order.tax.amount
+        discount = order.discount.amount
 
         metadata = {}
         amount = 0
+
         for idx, item in enumerate(order.items.all()):
             if item.currency == Item.Currency.DOLLAR:
                 amount += int(item.price * 100)
             elif item.currency == Item.Currency.ROUBLE:
                 amount += int(item.price)
             metadata[f"item_{idx}_id"] = str(item.id)
+
+        tax_amount = (tax / 100) * amount
+        discount_amount = (discount / 100) * amount
+        final_amount = (amount + tax_amount) - discount_amount
+
         stripe.api_key = settings.STRIPE_SECRET_KEY_DOLLAR
         intent = stripe.PaymentIntent.create(
             automatic_payment_methods={"enabled": True},
             metadata = metadata,
-            amount = amount,
+            amount = final_amount,
             currency = "usd"
         )
         return JsonResponse({"client_secret":intent.client_secret}) # Так как в бонусных заданиях было указано использовать Payment Intent приходится возвращать именно это
